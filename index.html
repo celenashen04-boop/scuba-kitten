@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scuba Kitten</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1ec;
+    --panel: #ffffff;
+    --ink: #22201c;
+    --muted: #77716a;
+    --line: #e3ddd4;
+    --accent: #22201c;
+    --nose: #e0a43c;
+    --wave: #4a9fd8;
+    --scuba: #d9826b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1917;
+      --panel: #242220;
+      --ink: #f0ece6;
+      --muted: #a39d95;
+      --line: #36332f;
+      --accent: #f0ece6;
+      --nose: #ffd678;
+      --wave: #78c8ff;
+      --scuba: #e8987f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Inter, system-ui, sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 {
+    font-family: Fraunces, Georgia, serif;
+    font-size: clamp(2rem, 6vw, 3rem);
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  header h1 em { font-style: normal; color: var(--scuba); }
+  header p { color: var(--muted); margin: 6px 0 24px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .stage {
+    aspect-ratio: 4 / 3;
+    border-radius: 12px;
+    background: var(--bg);
+    overflow: hidden; position: relative;
+    display: grid; place-items: center;
+  }
+  #cam-stage video, #cam-stage canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    transform: scaleX(-1);
+  }
+  #kitten-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .stage .hint { color: var(--muted); text-align: center; padding: 24px; position: relative; }
+  .pill {
+    position: absolute; top: 12px; left: 12px; z-index: 2;
+    padding: 4px 12px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line);
+    font-size: .8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  }
+  .pill.SCUBA { background: var(--scuba); border-color: var(--scuba); color: #fff; }
+  .pill.PINCH { background: var(--nose); border-color: var(--nose); color: #22201c; }
+  .caption { font-family: Fraunces, Georgia, serif; font-size: 1.5rem; font-weight: 700; margin: 12px 0 4px; min-height: 2.2rem; }
+
+  .row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    font: inherit; font-weight: 600;
+    padding: 10px 18px; border-radius: 10px;
+    border: none; background: var(--accent); color: var(--bg);
+    cursor: pointer;
+  }
+  .btn.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .status { color: var(--muted); font-size: .85rem; }
+
+  .flags { display: flex; gap: 8px; flex-wrap: wrap; }
+  .flag {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--line); font-size: .85rem; font-weight: 500; color: var(--muted);
+  }
+  .flag::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+  .flag.on { color: var(--ink); }
+  #flag-nose.on { border-color: var(--nose); }
+  #flag-nose.on::before { background: var(--nose); }
+  #flag-wave.on { border-color: var(--wave); }
+  #flag-wave.on::before { background: var(--wave); }
+
+  /* Angle gauge: -60°..60°, shaded band = the kitten's ±35° reach */
+  .gauge { margin-top: 12px; }
+  .gauge-top { display: flex; justify-content: space-between; font-size: .85rem; font-weight: 500; }
+  .gauge-top span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .gauge-track { position: relative; height: 22px; margin-top: 4px; border-radius: 999px; background: var(--bg); }
+  .gauge-band { position: absolute; top: 0; bottom: 0; left: 20.83%; right: 20.83%; border-radius: 999px; background: var(--line); }
+  .gauge-mid { position: absolute; top: 3px; bottom: 3px; left: 50%; width: 1px; background: var(--muted); }
+  .gauge-dot { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; left: 50%; }
+  #dot-you { background: var(--wave); }
+  #dot-kitten { background: var(--scuba); width: 10px; height: 10px; margin: -5px 0 0 -5px; }
+  .legend { display: flex; gap: 14px; font-size: .78rem; color: var(--muted); margin-top: 4px; }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+
+  .controls { margin-top: 16px; }
+  .controls h2 { font-family: Fraunces, Georgia, serif; font-size: 1.3rem; margin: 0 0 4px; }
+  .controls .sub { color: var(--muted); font-size: .85rem; margin: 0 0 16px; }
+  .ctrl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px 28px; }
+  .ctrl-group h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  .ctrl { margin-bottom: 14px; }
+  .ctrl label { display: flex; justify-content: space-between; font-weight: 500; font-size: .92rem; }
+  .ctrl label output { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ctrl input[type=range] { width: 100%; accent-color: var(--scuba); }
+  .ctrl small { display: block; color: var(--muted); font-size: .78rem; line-height: 1.35; }
+  .toggle { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 12px; font-size: .92rem; font-weight: 500; }
+  .toggle input { accent-color: var(--scuba); margin-top: 4px; }
+  .toggle small { display: block; color: var(--muted); font-size: .78rem; font-weight: 400; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Do the <em>scuba</em></h1>
+    <p>Pinch your nose with one hand and wave the other in front of your face. The kitten's arm copies your forearm's angle, so it waves as fast as you do.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="stage" id="cam-stage">
+        <span class="pill" id="pill">Camera off</span>
+        <div class="hint" id="hint">Start the camera. Stand back so your head, shoulders, elbows and both hands are in view.</div>
+        <video id="video" playsinline muted hidden></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="caption" id="caption">&nbsp;</div>
+      <div class="flags">
+        <span class="flag" id="flag-nose">Nose pinched</span>
+        <span class="flag" id="flag-wave">Waving arm found</span>
+      </div>
+      <div class="row">
+        <button class="btn" id="cam-btn" disabled>Loading pose model…</button>
+        <span class="status" id="status"></span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="stage" id="kitten-stage">
+        <div class="hint" id="kitten-hint">Loading kitten…</div>
+      </div>
+      <div class="gauge">
+        <div class="gauge-top"><span>Arm angle</span><span id="angle-val">–</span></div>
+        <div class="gauge-track">
+          <div class="gauge-band"></div><div class="gauge-mid"></div>
+          <div class="gauge-dot" id="dot-you" hidden></div>
+          <div class="gauge-dot" id="dot-kitten"></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--wave)"></i>You</span>
+          <span><i style="background:var(--scuba)"></i>Kitten (reaches ±35°)</span>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn secondary" id="test-btn" title="Hold to make the kitten scuba on its own">Hold to test</button>
+        <button class="btn secondary" id="view-btn">Reset view</button>
+        <button class="btn secondary" id="serial-btn" title="Drive the physical motor kitten over USB (Chrome/Edge)">Connect Arduino</button>
+        <span class="status" id="serial-status"></span>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel controls">
+    <h2>Controls</h2>
+    <div class="ctrl-grid" id="ctrl-grid"></div>
+    <div class="row"><button class="btn secondary" id="reset-btn">Reset to defaults</button></div>
+  </section>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { FilesetResolver, PoseLandmarker }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+const POSE_MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+const KITTEN_MODEL = "models/scuba_kitten_motor_assembled.glb";
+
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const DEG = Math.PI / 180;
+
+const PSI_MAX = 35 * DEG;       // kitten arm half swing, set by the mechanism
+const AUTO_WAVES = 1.2;         // waves/s for the hello wave and the test button
+
+// ---------------- controls ----------------
+// Each control: [key, label, min, max, step, default, unit, help]
+const GROUPS = [
+  ["Detection", [
+    ["minConf", "Tracking confidence", 0.2, 0.9, 0.05, 0.5, "", "Ignore joints the camera is less sure about. Raise it if the kitten triggers on its own."],
+  ]],
+];
+// Fixed tuning (distances in shoulder-widths, times in ms).
+const FIXED = {
+  nearNose: 0.75,     // hand this close to the nose = pinching
+  waveHeight: 0.6,    // waving hand may sit this far below the shoulders
+  holdMs: 600,        // keep following the arm through tracking flicker
+  absentMs: 1500,     // no one in view this long = gone
+  greetMs: 1400,      // hello wave when someone walks up
+};
+const TOGGLES = [
+  ["requirePinch", "Require nose pinch", true, "Off: the kitten copies any raised arm."],
+  ["skeleton", "Show body tracking", true, "Draw the tracked joints over the camera."],
+];
+const DEFAULTS = {};
+GROUPS.forEach(([, cs]) => cs.forEach((c) => (DEFAULTS[c[0]] = c[5])));
+TOGGLES.forEach((t) => (DEFAULTS[t[0]] = t[2]));
+
+let cfg = { ...FIXED, ...DEFAULTS };
+try {
+  const saved = JSON.parse(localStorage.getItem("scuba-cfg") || "{}");
+  for (const k in DEFAULTS) if (k in saved) cfg[k] = saved[k];
+} catch {}
+const saveCfg = () => {
+  const out = {};
+  for (const k in DEFAULTS) out[k] = cfg[k];
+  try { localStorage.setItem("scuba-cfg", JSON.stringify(out)); } catch {}
+};
+
+const inputs = {};
+function buildControls() {
+  const grid = $("ctrl-grid");
+  for (const [title, cs] of GROUPS) {
+    const g = document.createElement("div");
+    g.className = "ctrl-group";
+    g.innerHTML = `<h3>${title}</h3>`;
+    for (const [key, label, min, max, step, , unit, help] of cs) {
+      const d = document.createElement("div");
+      d.className = "ctrl";
+      d.innerHTML = `<label for="c-${key}">${label}<output></output></label>
+        <input type="range" id="c-${key}" min="${min}" max="${max}" step="${step}">
+        ${help ? `<small>${help}</small>` : ""}`;
+      const input = d.querySelector("input"), out = d.querySelector("output");
+      const show = () => (out.textContent = (+cfg[key]).toFixed(step < 1 ? 2 : 0) + unit);
+      input.addEventListener("input", () => { cfg[key] = +input.value; show(); saveCfg(); });
+      inputs[key] = () => { input.value = cfg[key]; show(); };
+      g.appendChild(d);
+    }
+    grid.appendChild(g);
+  }
+  const g = document.createElement("div");
+  g.className = "ctrl-group";
+  g.innerHTML = "<h3>Options</h3>";
+  for (const [key, label, , help] of TOGGLES) {
+    const d = document.createElement("label");
+    d.className = "toggle";
+    d.innerHTML = `<input type="checkbox"><span>${label}<small>${help}</small></span>`;
+    const input = d.querySelector("input");
+    input.addEventListener("change", () => { cfg[key] = input.checked; saveCfg(); });
+    inputs[key] = () => (input.checked = cfg[key]);
+    g.appendChild(d);
+  }
+  grid.appendChild(g);
+  Object.values(inputs).forEach((f) => f());
+}
+buildControls();
+$("reset-btn").addEventListener("click", () => {
+  cfg = { ...FIXED, ...DEFAULTS };
+  saveCfg();
+  Object.values(inputs).forEach((f) => f());
+});
+
+// ---------------- pose detection ----------------
+// MediaPipe pose landmark indices
+const P = { nose: 0, lShoulder: 11, rShoulder: 12, lElbow: 13, rElbow: 14, lWrist: 15, rWrist: 16, lIndex: 19, rIndex: 20 };
+
+const video = $("video"), overlay = $("overlay"), octx = overlay.getContext("2d");
+let landmarker, stream, camOn = false, lastVideoTime = -1;
+let lastPose = null;
+
+async function initPose() {
+  try {
+    const fileset = await FilesetResolver.forVisionTasks(WASM);
+    landmarker = await PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: POSE_MODEL, delegate: "GPU" },
+      runningMode: "VIDEO",
+      numPoses: 1,
+    });
+    $("cam-btn").disabled = false;
+    $("cam-btn").textContent = "Start camera";
+  } catch (e) {
+    $("cam-btn").textContent = "Model failed";
+    $("status").textContent = e.message;
+  }
+}
+
+$("cam-btn").addEventListener("click", async () => {
+  if (camOn) {
+    camOn = false;
+    stream?.getTracks().forEach((t) => t.stop());
+    video.hidden = true;
+    $("hint").hidden = false;
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    lastPose = null;
+    $("cam-btn").textContent = "Start camera";
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: 960, height: 720 } });
+  } catch (e) {
+    $("status").textContent = "Camera blocked: " + e.message;
+    return;
+  }
+  video.srcObject = stream;
+  await video.play();
+  video.hidden = false;
+  $("hint").hidden = true;
+  $("status").textContent = "";
+  camOn = true;
+  $("cam-btn").textContent = "Stop camera";
+});
+
+function detect() {
+  if (!camOn || !landmarker || video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  const r = landmarker.detectForVideo(video, performance.now());
+  lastPose = r.landmarks?.[0] || null;
+}
+
+// Turn landmarks into: is someone there, is a hand on the nose, and the waving forearm's angle.
+function analyse() {
+  const out = { present: false, pinch: false, pinchHand: null, waveHand: null, nose: null, sw: 0 };
+  if (!lastPose) return out;
+  const W = video.videoWidth, H = video.videoHeight;
+  const pt = (i) => {
+    const l = lastPose[i];
+    return l && (l.visibility ?? 1) >= cfg.minConf ? { x: l.x * W, y: l.y * H } : null;
+  };
+  const nose = pt(P.nose), ls = pt(P.lShoulder), rs = pt(P.rShoulder);
+  if (!nose || !ls || !rs) return out;
+  out.present = true;
+  out.nose = nose;
+  const sw = Math.max(Math.hypot(ls.x - rs.x, ls.y - rs.y), 40);
+  out.sw = sw;
+  const shoulderY = (ls.y + rs.y) / 2;
+
+  // Each hand: wrist, elbow, and the index fingertip if visible (closer to the nose when pinching).
+  const hands = [[P.lWrist, P.lElbow, P.lIndex], [P.rWrist, P.rElbow, P.rIndex]].map(([w, e, f]) => {
+    const wrist = pt(w), elbow = pt(e), tip = pt(f);
+    if (!wrist) return null;
+    const d = Math.min(...[wrist, tip].filter(Boolean).map((p) => Math.hypot(p.x - nose.x, p.y - nose.y) / sw));
+    return { ...(tip || wrist), wrist, elbow, d };
+  }).filter(Boolean);
+
+  const best = hands.reduce((a, b) => (!a || b.d < a.d ? b : a), null);
+  if (best && best.d < cfg.nearNose) { out.pinch = true; out.pinchHand = best; }
+  // The waving arm: a raised hand that isn't on the nose, with its elbow visible.
+  const raised = (h) => h !== out.pinchHand && h.elbow && h.wrist.y < shoulderY + cfg.waveHeight * sw;
+  out.waveHand = hands.find(raised) || null;
+  if (out.waveHand) {
+    const { wrist, elbow } = out.waveHand;
+    // Forearm tilt from vertical, in degrees, as seen in the (mirrored) preview: + = toward screen right.
+    out.angle = -Math.atan2(wrist.x - elbow.x, elbow.y - wrist.y) / DEG;
+  }
+  return out;
+}
+
+// ---------------- state machine ----------------
+let state = "OFF";
+let lastSeen = -1e9, lastPinch = -1e9, lastFollow = -1e9, greetUntil = 0;
+let userAngle = null;           // degrees, last seen waving-forearm angle
+let testing = false;
+
+function decide(now) {
+  const a = analyse();
+  if (a.present) lastSeen = now;
+  if (a.pinch) lastPinch = now;
+  if (a.waveHand && (a.pinch || !cfg.requirePinch)) { lastFollow = now; userAngle = a.angle; }
+
+  const present = camOn && now - lastSeen < cfg.absentMs;
+  let next;
+  if (testing) next = "TEST";
+  else if (!camOn) next = "OFF";
+  else if (!present) next = "NO_ONE";
+  else if (now - lastFollow < cfg.holdMs) next = "SCUBA";
+  else if (cfg.requirePinch && now - lastPinch < cfg.holdMs) next = "PINCH";
+  else if (state === "NO_ONE" || state === "OFF") { greetUntil = now + cfg.greetMs; next = cfg.greetMs ? "GREET" : "WATCHING"; }
+  else if (state === "GREET" && now < greetUntil) next = "GREET";
+  else next = "WATCHING";
+  state = next;
+  if (state !== "SCUBA") userAngle = null;
+  return a;
+}
+
+const CAPTION = {
+  OFF: "Start the camera to begin",
+  NO_ONE: "Come closer…",
+  GREET: "The kitten says hi!",
+  WATCHING: "Pinch your nose to start",
+  PINCH: "Now raise your other hand and wave!",
+  SCUBA: "SCUBA!",
+  TEST: "Test mode",
+};
+const PILL = { OFF: "Camera off", NO_ONE: "No one", GREET: "Hello", WATCHING: "Watching", PINCH: "Pinching", SCUBA: "Scuba", TEST: "Test" };
+
+function drawOverlay(a) {
+  overlay.width = video.videoWidth || 640;
+  overlay.height = video.videoHeight || 480;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+  if (!camOn || !lastPose) return;
+  const css = getComputedStyle(document.documentElement);
+  const W = overlay.width, H = overlay.height;
+  if (cfg.skeleton) {
+    const pairs = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24]];
+    octx.strokeStyle = "rgba(255,255,255,.7)";
+    octx.lineWidth = 3;
+    for (const [i, j] of pairs) {
+      const p = lastPose[i], q = lastPose[j];
+      if ((p.visibility ?? 1) < cfg.minConf || (q.visibility ?? 1) < cfg.minConf) continue;
+      octx.beginPath(); octx.moveTo(p.x * W, p.y * H); octx.lineTo(q.x * W, q.y * H); octx.stroke();
+    }
+    octx.fillStyle = "rgba(255,255,255,.85)";
+    for (const l of lastPose) {
+      if ((l.visibility ?? 1) < cfg.minConf) continue;
+      octx.beginPath(); octx.arc(l.x * W, l.y * H, 4, 0, 7); octx.fill();
+    }
+  }
+  if (!a.nose) return;
+  const nose = css.getPropertyValue("--nose").trim(), wave = css.getPropertyValue("--wave").trim();
+  // Nose-reach circle: a hand inside it counts as pinching.
+  octx.strokeStyle = nose;
+  octx.setLineDash([8, 8]);
+  octx.lineWidth = 2;
+  octx.beginPath(); octx.arc(a.nose.x, a.nose.y, cfg.nearNose * a.sw, 0, 7); octx.stroke();
+  octx.setLineDash([]);
+  octx.fillStyle = nose;
+  octx.beginPath(); octx.arc(a.nose.x, a.nose.y, 8, 0, 7); octx.fill();
+  octx.lineWidth = 5;
+  if (a.pinchHand) {
+    octx.beginPath(); octx.arc(a.pinchHand.x, a.pinchHand.y, 24, 0, 7); octx.stroke();
+    octx.beginPath(); octx.moveTo(a.pinchHand.x, a.pinchHand.y); octx.lineTo(a.nose.x, a.nose.y); octx.stroke();
+  }
+  if (a.waveHand) {
+    // Highlight the forearm the kitten is copying.
+    const { wrist, elbow } = a.waveHand;
+    octx.strokeStyle = wave;
+    octx.lineWidth = 8;
+    octx.lineCap = "round";
+    octx.beginPath(); octx.moveTo(elbow.x, elbow.y); octx.lineTo(wrist.x, wrist.y); octx.stroke();
+  }
+}
+
+function updateUI(a) {
+  $("caption").textContent = CAPTION[state];
+  $("pill").textContent = PILL[state];
+  $("pill").className = "pill " + state;
+  $("flag-nose").classList.toggle("on", a.pinch);
+  $("flag-wave").classList.toggle("on", !!a.waveHand);
+  // Gauge spans -60°..60°.
+  const pos = (deg) => clamp(50 + (deg / 60) * 50, 0, 100) + "%";
+  const kDeg = kittenAngle() / DEG;
+  $("dot-kitten").style.left = pos(kDeg);
+  $("dot-you").hidden = userAngle == null;
+  if (userAngle != null) $("dot-you").style.left = pos(userAngle);
+  $("angle-val").textContent = (userAngle != null ? `you ${Math.round(userAngle)}° · ` : "") + `kitten ${Math.round(kDeg)}°`;
+}
+
+// ---------------- 3D kitten ----------------
+const kStage = $("kitten-stage");
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+kStage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const cam3 = new THREE.PerspectiveCamera(32, 4 / 3, 0.01, 50);
+const orbit = new OrbitControls(cam3, renderer.domElement);
+orbit.enableDamping = true;
+orbit.enablePan = false;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(2, 3, 4);
+scene.add(sun);
+
+const VIEW = { pos: new THREE.Vector3(-1.0, 0.5, 3.3), target: new THREE.Vector3(0, 0.05, 0) };
+function resetView() {
+  cam3.position.copy(VIEW.pos);
+  orbit.target.copy(VIEW.target);
+  orbit.update();
+}
+$("view-btn").addEventListener("click", resetView);
+resetView();
+
+// The linkage, driven by one crank angle (phi), same maths as the physical build:
+// gear A (motor) -> gear B (crank pin) -> shuttle slides in X -> fin pin pushes tiller -> arm swings about the hinge.
+// Arm angle from centre: psi = -atan(R sin(phi) / rho), which reaches ±PSI_MAX.
+let rig = null;
+
+new GLTFLoader().load(KITTEN_MODEL, (gltf) => {
+  const root = gltf.scene;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    // The model has no normals, so shade each flat face on its own (crisp, laser-cut look).
+    o.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, flatShading: true, side: THREE.DoubleSide });
+    // Vertex colours are stored as sRGB; three.js expects linear.
+    const c = o.geometry.attributes.color, col = new THREE.Color();
+    if (c) for (let i = 0; i < c.count; i++) {
+      col.setRGB(c.getX(i), c.getY(i), c.getZ(i), THREE.SRGBColorSpace);
+      c.setXYZ(i, col.r, col.g, col.b);
+    }
+  });
+  root.updateMatrixWorld(true);
+  const node = (n) => root.getObjectByName(n);
+  const center = (n) => new THREE.Box3().setFromObject(node(n)).getCenter(new THREE.Vector3());
+  const pivot = (names, at) => {
+    const g = new THREE.Group();
+    g.position.copy(at);
+    root.add(g);
+    g.updateMatrixWorld(true);
+    names.map(node).filter(Boolean).forEach((o) => g.attach(o));
+    return g;
+  };
+
+  const hinge = center("pin_hinge"), gB = center("gearB"), gA = center("gearA"), crank = center("pin_crank");
+  const v = crank.clone().sub(gB);
+  const R = Math.hypot(v.x, v.y);
+  rig = {
+    R,
+    rho: R / Math.tan(PSI_MAX),
+    phi0: Math.atan2(v.x, -v.y),
+    arm: pivot(["tiller", "uknuckle", "forearm", "forearm_engraving", "pin_hinge"], new THREE.Vector3(hinge.x, 0, hinge.z)),
+    shuttle: pivot(["shuttle", "fin", "pin_fin"], new THREE.Vector3()),
+    gearB: pivot(["gearB", "pin_crank", "pin_axleB"], new THREE.Vector3(gB.x, gB.y, 0)),
+    gearA: pivot(["gearA", "motor_shaft"], new THREE.Vector3(gA.x, gA.y, 0)),
+  };
+  rig.phi = rig.phi0;
+
+  // Center and scale (model is in mm).
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+  const wrap = new THREE.Group();
+  wrap.scale.setScalar(2 / Math.max(size.x, size.y));
+  root.position.sub(mid);
+  wrap.add(root);
+  scene.add(wrap);
+  $("kitten-hint").remove();
+}, undefined, (e) => {
+  $("kitten-hint").textContent = "Couldn't load the kitten model. Open this page through a local server, not as a file.";
+  console.error(e);
+});
+
+// Kitten arm angle from centre (radians). + = paw toward screen right.
+const psiOf = (phi) => -Math.atan2(rig.R * Math.sin(phi), rig.rho);
+const kittenAngle = () => (rig ? psiOf(rig.phi) : 0);
+
+// Crank angle that puts the arm at psi, picking the solution nearest the current crank
+// so the gears turn the short way (and reverse when you reverse).
+function phiFor(psi) {
+  const s = clamp(-Math.tan(psi) * rig.rho / rig.R, -1, 1);
+  const a = Math.asin(s);
+  let best = rig.phi, bestD = Infinity;
+  for (const c of [a, Math.PI - a]) {
+    const cand = c + 2 * Math.PI * Math.round((rig.phi - c) / (2 * Math.PI));
+    const d = Math.abs(cand - rig.phi);
+    if (d < bestD) { bestD = d; best = cand; }
+  }
+  return best;
+}
+
+let crankSpeed = 0;   // waves/s, measured from the crank (for the Arduino)
+function poseRig(dt) {
+  if (!rig) return;
+  const prev = rig.phi;
+  if (state === "SCUBA" && userAngle != null) {
+    // Copy the user's forearm angle; the mechanism tops out at ±35°.
+    const target = phiFor(clamp(userAngle * DEG, -PSI_MAX, PSI_MAX));
+    rig.phi = lerp(rig.phi, target, 1 - Math.exp(-dt * 20));   // light smoothing against tracking jitter
+  } else if (state === "GREET" || state === "TEST") {
+    rig.phi += AUTO_WAVES * 2 * Math.PI * dt;
+  }
+  crankSpeed = lerp(crankSpeed, Math.abs(rig.phi - prev) / Math.max(dt, 1e-3) / (2 * Math.PI), 0.2);
+  const sinP = Math.sin(rig.phi), sin0 = Math.sin(rig.phi0);
+  rig.shuttle.position.x = rig.R * (sinP - sin0);
+  rig.arm.rotation.y = psiOf(rig.phi) - psiOf(rig.phi0);
+  rig.gearB.rotation.z = rig.phi - rig.phi0;
+  rig.gearA.rotation.z = -(rig.phi - rig.phi0) * 20 / 30;
+}
+
+function resize() {
+  const w = kStage.clientWidth, h = kStage.clientHeight;
+  renderer.setSize(w, h, false);
+  cam3.aspect = w / h;
+  cam3.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(kStage);
+
+// Hold-to-test (mouse, touch, or keyboard)
+const testBtn = $("test-btn");
+const testOn = (e) => { e.preventDefault(); testing = true; };
+const testOff = () => { testing = false; };
+testBtn.addEventListener("pointerdown", testOn);
+["pointerup", "pointerleave", "pointercancel"].forEach((ev) => testBtn.addEventListener(ev, testOff));
+testBtn.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") testOn(e); });
+testBtn.addEventListener("keyup", testOff);
+
+// ---------------- optional: physical kitten over Web Serial ----------------
+// Same protocol as the motor build's Arduino sketch: one integer 0..255 per line.
+// The DC motor can't hold a position, so it gets the kitten's current wave speed instead.
+const MOTOR_MAX_WAVES = 2.5;
+let writer = null, writing = false, lastSend = 0;
+const enc = new TextEncoder();
+$("serial-btn").addEventListener("click", async () => {
+  if (!("serial" in navigator)) { $("serial-status").textContent = "Needs Chrome or Edge"; return; }
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    writer = port.writable.getWriter();
+    $("serial-status").textContent = "Arduino connected";
+    $("serial-btn").disabled = true;
+  } catch (e) {
+    $("serial-status").textContent = "Not connected: " + e.message;
+  }
+});
+async function sendSpeed(now) {
+  if (!writer || writing || now - lastSend < 60) return;
+  lastSend = now;
+  writing = true;
+  const pwm = crankSpeed < 0.05 ? 0 : clamp(Math.round((crankSpeed / MOTOR_MAX_WAVES) * 255), 1, 255);
+  try { await writer.write(enc.encode(pwm + "\n")); }
+  catch (e) { $("serial-status").textContent = "Serial lost: " + e.message; writer = null; $("serial-btn").disabled = false; }
+  writing = false;
+}
+
+// ---------------- main loop ----------------
+let prevT = performance.now();
+function loop(now) {
+  const dt = Math.min((now - prevT) / 1000, 0.1);
+  prevT = now;
+  detect();
+  const a = decide(now);
+  poseRig(dt);
+  orbit.update();
+  renderer.render(scene, cam3);
+  drawOverlay(a);
+  updateUI(a);
+  sendSpeed(now);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+initPose();
+</script>
+</body>
+</html>
