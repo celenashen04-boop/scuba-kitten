@@ -1,6 +1,6 @@
 # Scuba Kitten
 
-Do the scuba dance in front of your webcam: pinch your nose with one hand and wave the other in front of your face. A 3D model of the Scuba Kitten automaton copies your waving forearm's angle, so it waves exactly as fast as you do.
+Do the scuba dance in front of your webcam: put your left hand on your nose and wave your right hand in front of your face. A 3D model of the Scuba Kitten automaton copies your waving forearm's angle, so it waves exactly as fast as you do.
 
 - Body tracking: [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) (runs in the browser)
 - 3D: [three.js](https://threejs.org), with the model's real linkage animated (gears, crank shuttle, arm hinge)

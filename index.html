@@ -140,7 +140,7 @@
 <main>
   <header>
     <h1>Do the <em>scuba</em></h1>
-    <p>Pinch your nose with one hand and wave the other in front of your face. The kitten's arm copies your forearm's angle, so it waves as fast as you do.</p>
+    <p>Put your left hand on your nose and wave your right hand in front of your face. The kitten's arm copies your forearm's angle, so it waves as fast as you do.</p>
   </header>
 
   <div class="grid">
@@ -153,8 +153,8 @@
       </div>
       <div class="caption" id="caption">&nbsp;</div>
       <div class="flags">
-        <span class="flag" id="flag-nose">Nose pinched</span>
-        <span class="flag" id="flag-wave">Waving arm found</span>
+        <span class="flag" id="flag-nose">Left hand on nose</span>
+        <span class="flag" id="flag-wave">Right arm raised</span>
       </div>
       <div class="row">
         <button class="btn" id="cam-btn" disabled>Loading pose model…</button>
@@ -235,7 +235,6 @@ const FIXED = {
   greetMs: 1400,      // hello wave when someone walks up
 };
 const TOGGLES = [
-  ["requirePinch", "Require nose pinch", true, "Off: the kitten copies any raised arm."],
   ["skeleton", "Show body tracking", true, "Draw the tracked joints over the camera."],
 ];
 const DEFAULTS = {};
@@ -371,18 +370,19 @@ function analyse() {
   const shoulderY = (ls.y + rs.y) / 2;
 
   // Each hand: wrist, elbow, and the index fingertip if visible (closer to the nose when pinching).
-  const hands = [[P.lWrist, P.lElbow, P.lIndex], [P.rWrist, P.rElbow, P.rIndex]].map(([w, e, f]) => {
+  // MediaPipe names joints from the person's point of view, so "left" is your left hand.
+  const hand = (w, e, f) => {
     const wrist = pt(w), elbow = pt(e), tip = pt(f);
     if (!wrist) return null;
     const d = Math.min(...[wrist, tip].filter(Boolean).map((p) => Math.hypot(p.x - nose.x, p.y - nose.y) / sw));
     return { ...(tip || wrist), wrist, elbow, d };
-  }).filter(Boolean);
+  };
+  const left = hand(P.lWrist, P.lElbow, P.lIndex), right = hand(P.rWrist, P.rElbow, P.rIndex);
 
-  const best = hands.reduce((a, b) => (!a || b.d < a.d ? b : a), null);
-  if (best && best.d < cfg.nearNose) { out.pinch = true; out.pinchHand = best; }
-  // The waving arm: a raised hand that isn't on the nose, with its elbow visible.
-  const raised = (h) => h !== out.pinchHand && h.elbow && h.wrist.y < shoulderY + cfg.waveHeight * sw;
-  out.waveHand = hands.find(raised) || null;
+  // Only the left hand counts as the nose hand.
+  if (left && left.d < cfg.nearNose) { out.pinch = true; out.pinchHand = left; }
+  // Only the right arm waves: raised, with its elbow visible.
+  if (right && right.elbow && right.wrist.y < shoulderY + cfg.waveHeight * sw) out.waveHand = right;
   if (out.waveHand) {
     const { wrist, elbow } = out.waveHand;
     // Forearm tilt from vertical, in degrees, as seen in the (mirrored) preview: + = toward screen right.
@@ -401,7 +401,7 @@ function decide(now) {
   const a = analyse();
   if (a.present) lastSeen = now;
   if (a.pinch) lastPinch = now;
-  if (a.waveHand && (a.pinch || !cfg.requirePinch)) { lastFollow = now; userAngle = a.angle; }
+  if (a.waveHand && a.pinch) { lastFollow = now; userAngle = a.angle; }
 
   const present = camOn && now - lastSeen < cfg.absentMs;
   let next;
@@ -409,7 +409,7 @@ function decide(now) {
   else if (!camOn) next = "OFF";
   else if (!present) next = "NO_ONE";
   else if (now - lastFollow < cfg.holdMs) next = "SCUBA";
-  else if (cfg.requirePinch && now - lastPinch < cfg.holdMs) next = "PINCH";
+  else if (now - lastPinch < cfg.holdMs) next = "PINCH";
   else if (state === "NO_ONE" || state === "OFF") { greetUntil = now + cfg.greetMs; next = cfg.greetMs ? "GREET" : "WATCHING"; }
   else if (state === "GREET" && now < greetUntil) next = "GREET";
   else next = "WATCHING";
@@ -422,8 +422,8 @@ const CAPTION = {
   OFF: "Start the camera to begin",
   NO_ONE: "Come closer…",
   GREET: "The kitten says hi!",
-  WATCHING: "Pinch your nose to start",
-  PINCH: "Now raise your other hand and wave!",
+  WATCHING: "Put your left hand on your nose",
+  PINCH: "Now wave your right hand!",
   SCUBA: "SCUBA!",
   TEST: "Test mode",
 };
