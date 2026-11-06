@@ -4,7 +4,7 @@ Do the scuba dance in front of your webcam: put your left hand on your nose and 
 
 - Body tracking: [MediaPipe Pose Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker) (runs in the browser)
 - 3D: [three.js](https://threejs.org), with the model's real linkage animated (gears, crank shuttle, arm hinge)
-- Optional: **Connect Arduino** drives the physical motor kitten over Web Serial (Chrome/Edge)
+- Optional: **Connect Arduino** drives the physical servo kitten over Web Serial (Chrome/Edge), with its paw at the same angle as the one on screen
 
 ## Run
 

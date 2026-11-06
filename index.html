@@ -181,7 +181,7 @@
       <div class="row">
         <button class="btn secondary" id="test-btn" title="Hold to make the kitten scuba on its own">Hold to test</button>
         <button class="btn secondary" id="view-btn">Reset view</button>
-        <button class="btn secondary" id="serial-btn" title="Drive the physical motor kitten over USB (Chrome/Edge)">Connect Arduino</button>
+        <button class="btn secondary" id="serial-btn" title="Drive the physical servo kitten over USB (Chrome/Edge)">Connect Arduino</button>
         <span class="status" id="serial-status"></span>
       </div>
     </section>
@@ -209,7 +209,7 @@ import { FilesetResolver, PoseLandmarker }
 
 const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
 const POSE_MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
-const KITTEN_MODEL = "models/scuba_kitten_motor_assembled.glb";
+const KITTEN_MODEL = "models/scuba_kitten_servo_assembled.glb";
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -517,8 +517,9 @@ $("view-btn").addEventListener("click", resetView);
 resetView();
 
 // The linkage, driven by one crank angle (phi), same maths as the physical build:
-// gear A (motor) -> gear B (crank pin) -> shuttle slides in X -> fin pin pushes tiller -> arm swings about the hinge.
+// servo -> gear A -> gear B (crank pin) -> shuttle slides in X -> fin pin pushes tiller -> arm swings about the hinge.
 // Arm angle from centre: psi = -atan(R sin(phi) / rho), which reaches ±PSI_MAX.
+// The servo swings gear B between -90° and +90°, so every paw angle has exactly one crank angle.
 let rig = null;
 
 new GLTFLoader().load(KITTEN_MODEL, (gltf) => {
@@ -556,7 +557,7 @@ new GLTFLoader().load(KITTEN_MODEL, (gltf) => {
     arm: pivot(["tiller", "uknuckle", "forearm", "forearm_engraving", "pin_hinge"], new THREE.Vector3(hinge.x, 0, hinge.z)),
     shuttle: pivot(["shuttle", "fin", "pin_fin"], new THREE.Vector3()),
     gearB: pivot(["gearB", "pin_crank", "pin_axleB"], new THREE.Vector3(gB.x, gB.y, 0)),
-    gearA: pivot(["gearA", "motor_shaft"], new THREE.Vector3(gA.x, gA.y, 0)),
+    gearA: pivot(["gearA", "servo_horn"], new THREE.Vector3(gA.x, gA.y, 0)),
   };
   rig.phi = rig.phi0;
 
@@ -578,32 +579,23 @@ new GLTFLoader().load(KITTEN_MODEL, (gltf) => {
 const psiOf = (phi) => -Math.atan2(rig.R * Math.sin(phi), rig.rho);
 const kittenAngle = () => (rig ? psiOf(rig.phi) : 0);
 
-// Crank angle that puts the arm at psi, picking the solution nearest the current crank
-// so the gears turn the short way (and reverse when you reverse).
-function phiFor(psi) {
-  const s = clamp(-Math.tan(psi) * rig.rho / rig.R, -1, 1);
-  const a = Math.asin(s);
-  let best = rig.phi, bestD = Infinity;
-  for (const c of [a, Math.PI - a]) {
-    const cand = c + 2 * Math.PI * Math.round((rig.phi - c) / (2 * Math.PI));
-    const d = Math.abs(cand - rig.phi);
-    if (d < bestD) { bestD = d; best = cand; }
-  }
-  return best;
-}
+// Crank angle (-90°..90°, the servo's range) that puts the arm at psi.
+const phiFor = (psi) => Math.asin(clamp(-Math.tan(psi) * rig.rho / rig.R, -1, 1));
 
-let crankSpeed = 0;   // waves/s, measured from the crank (for the Arduino)
+let autoT = 0;        // clock for the hello wave / test sweep
 function poseRig(dt) {
   if (!rig) return;
-  const prev = rig.phi;
   if (state === "SCUBA" && userAngle != null) {
     // Copy the user's forearm angle; the mechanism tops out at ±35°.
     const target = phiFor(clamp(userAngle * DEG, -PSI_MAX, PSI_MAX));
     rig.phi = lerp(rig.phi, target, 1 - Math.exp(-dt * 20));   // light smoothing against tracking jitter
   } else if (state === "GREET" || state === "TEST") {
-    rig.phi += AUTO_WAVES * 2 * Math.PI * dt;
+    // Sweep side to side like the servo does.
+    autoT += dt;
+    rig.phi = lerp(rig.phi, (Math.PI / 2) * Math.sin(2 * Math.PI * AUTO_WAVES * autoT), 1 - Math.exp(-dt * 20));
+  } else {
+    autoT = 0;
   }
-  crankSpeed = lerp(crankSpeed, Math.abs(rig.phi - prev) / Math.max(dt, 1e-3) / (2 * Math.PI), 0.2);
   const sinP = Math.sin(rig.phi), sin0 = Math.sin(rig.phi0);
   rig.shuttle.position.x = rig.R * (sinP - sin0);
   rig.arm.rotation.y = psiOf(rig.phi) - psiOf(rig.phi0);
@@ -629,9 +621,8 @@ testBtn.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Ent
 testBtn.addEventListener("keyup", testOff);
 
 // ---------------- optional: physical kitten over Web Serial ----------------
-// Same protocol as the motor build's Arduino sketch: one integer 0..255 per line.
-// The DC motor can't hold a position, so it gets the kitten's current wave speed instead.
-const MOTOR_MAX_WAVES = 2.5;
+// Same protocol as the servo build's Arduino sketch: the paw angle in degrees, one per line
+// (+ = toward the viewer's right). The servo puts the real paw at the same angle as the on-screen one.
 let writer = null, writing = false, lastSend = 0;
 const enc = new TextEncoder();
 $("serial-btn").addEventListener("click", async () => {
@@ -646,12 +637,11 @@ $("serial-btn").addEventListener("click", async () => {
     $("serial-status").textContent = "Not connected: " + e.message;
   }
 });
-async function sendSpeed(now) {
-  if (!writer || writing || now - lastSend < 60) return;
+async function sendAngle(now) {
+  if (!writer || writing || now - lastSend < 30) return;
   lastSend = now;
   writing = true;
-  const pwm = crankSpeed < 0.05 ? 0 : clamp(Math.round((crankSpeed / MOTOR_MAX_WAVES) * 255), 1, 255);
-  try { await writer.write(enc.encode(pwm + "\n")); }
+  try { await writer.write(enc.encode((kittenAngle() / DEG).toFixed(1) + "\n")); }
   catch (e) { $("serial-status").textContent = "Serial lost: " + e.message; writer = null; $("serial-btn").disabled = false; }
   writing = false;
 }
@@ -668,7 +658,7 @@ function loop(now) {
   renderer.render(scene, cam3);
   drawOverlay(a);
   updateUI(a);
-  sendSpeed(now);
+  sendAngle(now);
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
